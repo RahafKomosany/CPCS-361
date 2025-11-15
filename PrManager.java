@@ -24,40 +24,40 @@ public class PrManager {
         this.internalClock = 0;
     }
 
-    //Admit a process into the system (arrival handler)
+   //Admit a process into the system (arrival handler)
     public void procArrivingRoutine(PCB proc) {
-        // Admission test: memory and devices
-        if (proc.getMemoryReq() <= oks.getAvailableMemory()
-                && proc.getDevReq() <= oks.getAvailableDevices()) {
-            // Allocate and enqueue into Ready
-            oks.allocateMemory(proc.getMemoryReq());
-            oks.reserveDevices(proc.getDevReq());
-            readyQ.enqueue(proc);
 
-        } else {
-            // Not enough resources, assign to a hold queue
-            if (proc.getPriority() == 1) {
-                holdQ1.enqueue(proc);
-            } else //priority = 2
-            {
-                holdQ2.enqueue(proc);
-            }
-        }
+    // 1) Reject if exceeds system limits (without canEverAdmit())
+    if (proc.getMemoryReq() > oks.getTotalMemory() ||
+        proc.getDevReq() > oks.getTotalDevices()) {
+
+        proc.setState(5); // REJECTED
+        System.out.println("Process " + proc.getPID() + " rejected (exceeds total limits)");
+        return;
     }
 
-    private void updateSRAR() {
-        int sum = 0, count = 0;
-        for (PCB p : readyQ.toList()) {
-            sum += p.getRemainingBurst();
-            count++;
-        }
-        SR = sum;
-        AR = (count == 0) ? 0 : (sum / count);
+    // 2) If resources available now → admit into Ready
+    if (proc.getMemoryReq() <= oks.getAvailableMemory() &&
+        proc.getDevReq() <= oks.getAvailableDevices()) {
 
-        if (scheduler instanceof DRoundRobinScheduler) {
-            DRoundRobinScheduler drr = (DRoundRobinScheduler) scheduler;
-            drr.setSRAR(SR, AR);
+        oks.allocateMemory(proc.getMemoryReq());
+        oks.reserveDevices(proc.getDevReq());
+        readyQ.enqueue(proc);
+        proc.setState(1); // READY
+        updateSRAR();
+    }
+
+    // 3) Otherwise, send to hold queue
+    else {
+
+        if (proc.getMemoryReq() > oks.getAvailableMemory()) {
+            holdQ1.enqueue(proc); // sorted by memory
+        } else {
+            holdQ2.enqueue(proc); // FIFO
         }
+
+        proc.setState(2); // HOLD
+    }
 
     }
 
@@ -103,10 +103,80 @@ public class PrManager {
         return 1; //fixed later in phase 2
     }
 
+    private void tryAdmitFromHold() {
+    boolean moved = true;
+
+    // Repeat while at least one process is moved from hold to ready
+    while (moved) {
+        moved = false;
+
+        // =====================================
+        //      HQ1 (memory-based admission)
+        // =====================================
+        while (!holdQ1.isEmpty()) {
+
+            PCB p = holdQ1.peek();
+
+            // Check if resources are sufficient for this process
+            boolean enoughMemory  = p.getMemoryReq() <= oks.getAvailableMemory();
+            boolean enoughDevices = p.getDevReq()   <= oks.getAvailableDevices();
+
+            if (enoughMemory && enoughDevices) {
+
+                // Move process from HQ1 to Ready
+                p = holdQ1.dequeue();
+                oks.allocateMemory(p.getMemoryReq());
+                oks.reserveDevices(p.getDevReq());
+
+                readyQ.enqueue(p);
+                p.setState(1); // READY
+
+                updateSRAR();
+                moved = true;
+
+            } else {
+                // Cannot admit the first process in HQ1 → stop checking HQ1
+                break;
+            }
+        }
+
+        // =====================================
+        //      HQ2 (FIFO admission)
+        // =====================================
+        while (!holdQ2.isEmpty()) {
+
+            PCB p = holdQ2.peek();
+
+            // Check if resources are sufficient for this process
+            boolean enoughMemory  = p.getMemoryReq() <= oks.getAvailableMemory();
+            boolean enoughDevices = p.getDevReq()   <= oks.getAvailableDevices();
+
+            if (enoughMemory && enoughDevices) {
+
+                // Move process from HQ2 to Ready
+                p = holdQ2.dequeue();
+                oks.allocateMemory(p.getMemoryReq());
+                oks.reserveDevices(p.getDevReq());
+
+                readyQ.enqueue(p);
+                p.setState(1); // READY
+
+                updateSRAR();
+                moved = true;
+
+            } else {
+                // Cannot admit the first process in HQ2 → stop checking HQ2
+                break;
+            }
+        }
+    }
+}
+
     // Currently running process
     public long getRunningProcId() {
         return readyQ.isEmpty() ? -1 : ((PCB) readyQ.peek()).getPID();
     }
 
 }
+
 
