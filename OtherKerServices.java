@@ -1,14 +1,19 @@
-
 package simulationcontroller;
 
 public class OtherKerServices {
 
-    private long memorySize; // available memory in the system
-    private int noDevs;      // available devices in the system
+    private long memorySize;     // available memory
+    private int noDevs;          // available devices
+
+    private long totalMemory;    // total system memory
+    private int totalDevices;    // total system devices
 
     // Constructor to initialize system resources
     public OtherKerServices(long memorySize, int noDevs) {
-        this.memorySize = memorySize;
+        this.totalMemory = memorySize;
+        this.totalDevices = noDevs;
+
+        this.memorySize = memorySize; // available = total initially
         this.noDevs = noDevs;
     }
 
@@ -16,37 +21,47 @@ public class OtherKerServices {
     public boolean allocateMemory(long amount) {
         if (amount <= memorySize) {
             memorySize -= amount;
-            return true; // allocation successful
+            return true;
         }
-        return false; // not enough memory
+        return false;
     }
 
-    // Release memory back to the system 
+    // Release memory back
     public void deallocateMemory(long amount) {
         memorySize += amount;
     }
 
-    // Try to reserve devices for a process 
+    // Try to reserve devices
     public boolean reserveDevices(int count) {
         if (count <= noDevs) {
             noDevs -= count;
-            return true; // reservation successful
+            return true;
         }
-        return false; // not enough devices
+        return false;
     }
 
-    // Release devices back to the system 
+    // Release devices
     public void releaseDevices(int count) {
         noDevs += count;
     }
 
-    // Get current available memory 
+    // Get available memory
     public long getAvailableMemory() {
         return memorySize;
     }
 
-    // Get current available devices
+    // Get available devices
     public int getAvailableDevices() {
         return noDevs;
+    }
+
+    // Get TOTAL system memory
+    public long getTotalMemory() {
+        return totalMemory;
+    }
+
+    // Get TOTAL system devices
+    public int getTotalDevices() {
+        return totalDevices;
     }
 }
