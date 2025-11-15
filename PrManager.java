@@ -62,25 +62,37 @@ public class PrManager {
     }
 
     //Dispatch a job (CPU scheduling step) 
-    private void dispatch() {
-        if (readyQ.isEmpty()) {
-            return;
+    public void dispatch() {
+        // If no process is running or current process finished, get next one
+        if (runningProcess == null || runningProcess.getRemainingBurst() <= 0) {
+            // If current process finished, handle completion
+            if (runningProcess != null && runningProcess.getRemainingBurst() <= 0) {
+                processCompletion(runningProcess);
+            }
+            
+            // Select next process
+            if (!readyQ.isEmpty()) {
+                runningProcess = scheduler.selectNextProcess(readyQ, internalClock);
+                
+                if (runningProcess != null) {
+                    runningProcess.setState(1); // RUNNING
+                    
+                    // For Dynamic RR, set first quantum if this is the first process
+                    if (scheduler instanceof DRoundRobinScheduler) {
+                        DRoundRobinScheduler drr = (DRoundRobinScheduler) scheduler;
+                        if (drr.getTimeQuantum() == 0) {
+                            drr.setFirstQuantum((int)runningProcess.getBurstTime());
+                        }
+                    }
+                    
+                    // Compute time quantum for this process
+                    currentQuantum = scheduler.computeTimeQuantum(readyQ, runningProcess);
+                    quantumUsed = 0;
+                }
+            } else {
+                runningProcess = null;
+            }
         }
-
-        PCB job = (PCB) readyQ.dequeue();
-        job.setBurstTime(job.getBurstTime() - 1);
-
-        if (job.getBurstTime() <= 0) {
-            // Job finished
-            oks.deallocateMemory(job.getMemoryReq());
-            oks.releaseDevices(job.getDevReq());
-            CompleteQ.enqueue(job);
-        } else {
-            // Still needs CPU time 
-            readyQ.enqueue(job);
-        }
-    }   
-
     //Advance CPU clock
     public void cpuTimeAdvance(long duration) {
         internalClock += duration;
@@ -97,3 +109,4 @@ public class PrManager {
     }
 
 }
+
